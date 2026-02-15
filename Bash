@@ -1,0 +1,8 @@
+# Definir o branch principal
+git branch -M main
+
+# Ligar o seu computador ao repositório no GitHub
+git remote add origin https://github.com/josewandersonctufrn-eng/data-mobility-bh.git
+
+# Enviar os ficheiros
+git push -u origin main
