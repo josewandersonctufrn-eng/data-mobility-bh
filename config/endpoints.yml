@@ -1,0 +1,40 @@
+# CKAN API Configuration
+ckan:
+  base_url: "https://dados.pbh.gov.br"
+  resource_id_posicao: "c3b237cb-5f18-4c3a-b4b3-87f566c0885d"  # Bus position data
+  timeout_seconds: 30
+  batch_size: 1000
+
+# Storage Paths - Environment-specific
+storage:
+  dev:
+    bronze: "file:///data/bronze"
+    silver: "file:///data/silver"
+    gold: "file:///data/gold"
+  
+  stg:
+    bronze: "dbfs:/mnt/data-mobility-bh/stg/bronze"
+    silver: "dbfs:/mnt/data-mobility-bh/stg/silver"
+    gold: "dbfs:/mnt/data-mobility-bh/stg/gold"
+  
+  prod:
+    bronze: "dbfs:/mnt/data-mobility-bh/prod/bronze"
+    silver: "dbfs:/mnt/data-mobility-bh/prod/silver"
+    gold: "dbfs:/mnt/data-mobility-bh/prod/gold"
+
+# Transformation Parameters
+transformation:
+  silver:
+    bh_lat_min: -20.05
+    bh_lat_max: -19.75
+    bh_lon_min: -44.05
+    bh_lon_max: -43.85
+    max_speed_kmh: 100
+  
+  gold:
+    grid_size_degrees: 0.01  # ~1km
+
+# Logging
+logging:
+  level: "INFO"
+  file: "pipeline.log"
