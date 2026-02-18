@@ -1,67 +1,72 @@
-# Data Mobility BH
+# Data Mobility BH — Medallion Pipeline (Bronze / Silver / Gold)
 
-## Project Description
-Data Mobility BH is a comprehensive framework designed to facilitate efficient data transfer and management within various applications, focusing on usability, performance, and scalability. This project aims to streamline data mobility solutions across platforms, ensuring seamless user experiences and improving operational workflows.
+Este repositório implementa (em código) a solução descrita no PDF **“Pipeline de Dados: Mobilidade Urbana BH (Arquitetura Medallion)”**: ingestão via CKAN (PBH) para **Bronze (Parquet)**, tratamento e deduplicação na **Silver (Delta Lake)** e geração de agregações e fatos na **Gold (Delta Lake / Tabelas analíticas)**.
 
-## Architecture
-The architecture of the Data Mobility BH project is modular, with the following components:
-- **Data Ingestion Module**: Handles the collection and validation of incoming data from various sources.
-- **Processing Engine**: Applies transformations and business logic to the data, preparing it for storage or further analysis.
-- **Storage System**: A flexible storage solution that can accommodate both relational and non-relational databases.
-- **API Layer**: Exposes endpoints for integration with external systems, offering RESTful APIs to access, manage, and manipulate data.
-- **User Interface**: A web-based interface that allows users to interact with the system, visualize data flows, and monitor processing tasks.
+## Visão geral (Problema → Solução)
+**Problema:** dados de GPS de ônibus chegam com alta frequência, podem conter duplicidades (mesmo `id_veiculo` + timestamp), nulos, outliers de velocidade e coordenadas fora da malha (off-grid). Isso degrada métricas (velocidade média, pontualidade) e inviabiliza governança.
 
-## Setup Instructions
-1. **Clone the Repository**:  
-   Git clone the repository to your local environment using the following command:
-   ```bash
-   git clone https://github.com/josewandersonctufrn-eng/data-mobility-bh.git
-   cd data-mobility-bh
-   ```
+**Solução:** arquitetura Medallion com idempotência e governança:
+- **Bronze (Raw / Imutável):** persiste payload da API em Parquet particionado por data de ingestão.
+- **Silver (Trusted):** tipagem, filtros (GPS nulo), quarentena (off-grid) e deduplicação por (`id_veiculo`, `timestamp_posicao`).
+- **Gold (Analytics):** agregações (ex.: velocidade média por “zonas” de lat/long) e fatos (lead time / pontualidade por veículo/linha/dia).
+- **DataOps:** testes unitários (PyTest), lint (flake8) e workflow de CI/CD (GitHub Actions), com deploy via Databricks CLI (Workspace import).
 
-2. **Install Dependencies**:  
-   Ensure that you have Node.js installed, then install necessary dependencies:
-   ```bash
-   npm install
-   ```
+## Estrutura
+```
+data-mobility-bh/
+├── .github/workflows/deploy_pipeline.yml
+├── config/endpoints.yml
+├── src/
+│   ├── ingestion/ckan_ingest.py
+│   ├── transformation/silver.py
+│   ├── transformation/gold.py
+│   ├── utils/spark.py
+│   └── utils/logging.py
+├── scripts/run_pipeline.py
+├── tests/test_transformations.py
+├── requirements.txt
+└── README.md
+```
 
-3. **Environment Configuration**:  
-   Create a `.env` file in the root directory and configure your environment variables as follows:
-   ```bash
-   DATABASE_URL=your_database_url
-   API_KEY=your_api_key
-   ```
+## Como executar (local)
+> Requer Java 8/11/17, Python 3.11+ e Spark via PySpark.
 
-4. **Run the Application**:  
-   Start the server with: 
-   ```bash
-   npm start
-   ```
+1) Crie ambiente e instale dependências:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # (Windows: .venv\Scripts\activate)
+pip install -r requirements.txt
+```
 
-5. **Access the User Interface**:  
-   Open your web browser and navigate to `http://localhost:3000` to access the web interface.
+2) Execute testes:
+```bash
+pytest -q
+```
 
-## Usage Examples
-- **Data Ingestion**: 
-   To ingest a new dataset, send a `POST` request to the API endpoint:
-   ```bash
-   curl -X POST http://localhost:3000/api/data
-   ```
+3) Rode o pipeline (exemplo local):
+```bash
+python scripts/run_pipeline.py --env dev
+```
 
-- **Data Retrieval**:  
-   Fetch stored data using the following command:
-   ```bash
-   curl -X GET http://localhost:3000/api/data
-   ```
+### Paths (local vs Databricks)
+- Local: usa `file:///...` para Parquet/Delta (default em `data/`).
+- Databricks: você pode configurar `dbfs:/mnt/...` no `config/endpoints.yml`.
 
-- **Data Deletion**:  
-   To delete a specific data entry, use the `DELETE` request:
-   ```bash
-   curl -X DELETE http://localhost:3000/api/data/{id}
-   ```
+## Configuração de endpoints e storage
+Edite `config/endpoints.yml`:
+- `ckan.base_url`
+- `ckan.resource_id_posicao`
+- `storage.*.bronze/silver/gold` para `dev/stg/prod`
 
-## Contribution Guidelines
-If you would like to contribute to the project, please fork the repository and submit a pull request. Ensure your code follows the existing style guide and includes relevant tests.
+## Notas de Qualidade
+- **Deduplicação:** chave natural `id_veiculo + timestamp_posicao`.
+- **Velocidade outlier:** descartamos `velocidade > 100` (ajuste conforme regra).
+- **Off-grid:** coordenadas fora de BH podem ir para “quarentena” (Bronze) — veja `silver.py`.
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for more details.
+## CI/CD
+Workflow em `.github/workflows/deploy_pipeline.yml`:
+- lint → testes → deploy (somente `main`)
+- deploy exemplificado com `databricks workspace import_dir`.
+
+---
+Autor: José Wanderson (2026)

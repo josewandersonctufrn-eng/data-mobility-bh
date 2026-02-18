@@ -1,0 +1,12 @@
+# Core
+pyspark==3.5.0
+delta-spark==3.1.0
+requests>=2.31.0
+PyYAML>=6.0.1
+
+# Quality / Testing
+pytest>=8.0.0
+flake8>=7.0.0
+
+# Optional (enable if you will use Great Expectations locally)
+great-expectations>=0.18.0
